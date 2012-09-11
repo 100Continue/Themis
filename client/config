@@ -1,0 +1,11 @@
+ngx_addon_name=ngx_themis_moduls
+
+THEMIS_CORE_DIR="$ngx_addon_dir/core"
+
+
+PROCS_MODULES="$PROCS_MODULES ngx_proc_themis_module"
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS $THEMIS_CORE_DIR/ngx_proc_themis_module.c"
+
+
+HTTP_MODULES="$HTTP_MODULES ngx_http_themis_module"
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS $THEMIS_CORE_DIR/ngx_http_themis_module.c"
