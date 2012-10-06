@@ -4,6 +4,9 @@
 #include <ngx_http.h>
 
 
+typedef struct ngx_proc_themis_conf_s ngx_proc_themis_conf_t;
+
+
 static void *ngx_proc_themis_create_conf(ngx_conf_t *cf);
 static char *ngx_proc_themis_merge_conf(ngx_conf_t *cf,
     void *parent, void *child);
@@ -14,7 +17,19 @@ static ngx_int_t ngx_proc_themis_init_process(ngx_cycle_t *cycle);
 static ngx_int_t ngx_proc_themis_init_module(ngx_cycle_t *cycle);
 
 
+struct ngx_proc_themis_conf_s {
+    ngx_str_t  server;
+};
+
+
 static ngx_command_t ngx_proc_themis_commands[] = {
+    { ngx_string("server"),
+      NGX_PROC_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_PROC_CONF_OFFSET,
+      offsetof(ngx_proc_themis_conf_t, server),
+      NULL },
+
       ngx_null_command
 };
 
@@ -51,14 +66,26 @@ ngx_module_t  ngx_proc_themis_module = {
 static void *
 ngx_proc_themis_create_conf(ngx_conf_t *cf)
 {
-    return NULL;
+    ngx_proc_themis_conf_t  *conf;
+
+    conf = ngx_pcalloc(cf->pool, sizeof(ngx_proc_themis_conf_t));
+    if (conf == NULL) {
+        return NULL;
+    }
+
+    return conf;
 }
 
 
 static char *
 ngx_proc_themis_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 {
-    return NULL;
+    ngx_proc_themis_conf_t  *prev = parent;
+    ngx_proc_themis_conf_t  *conf = child;
+
+    ngx_conf_merge_str_value(prev->server, conf->server, "");
+
+    return NGX_CONF_OK;
 }
 
 
