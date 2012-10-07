@@ -5,11 +5,6 @@
 #include <ngx_http_themis.h>
 
 
-typedef struct ngx_themis_config_s ngx_themis_config_t;
-typedef struct ngx_http_themis_main_conf_s ngx_http_themis_main_conf_t;
-typedef struct ngx_http_themis_loc_conf_s ngx_http_themis_loc_conf_t;
-
-
 static ngx_int_t ngx_http_themis_preconfiguration(ngx_conf_t *cf);
 static ngx_int_t ngx_http_themis_init(ngx_conf_t *cf);
 static void *ngx_http_themis_create_main_conf(ngx_conf_t *cf);
@@ -22,28 +17,6 @@ static void ngx_http_themis_exit(ngx_cycle_t *cycle);
 static char *ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
-
-struct ngx_http_themis_main_conf_s {
-    ngx_array_t  configs;        /* ngx_hash_key_t: ngx_themis_config_t */
-
-    ngx_hash_t   configs_hash;
-
-    ngx_uint_t   configs_hash_max_size;
-    ngx_uint_t   configs_hash_bucket_size;
-};
-
-
-struct ngx_themis_config_s {
-    ngx_str_t  name;
-    void     **module_configs;
-};
-
-
-struct ngx_http_themis_loc_conf_s {
-    ngx_str_t             name;
-    ngx_flag_t            enable;
-    ngx_themis_config_t  *config;
-};
 
 
 static ngx_command_t ngx_http_themis_commands[] = {
@@ -108,11 +81,10 @@ ngx_http_themis_preconfiguration(ngx_conf_t *cf)
 static ngx_int_t
 ngx_http_themis_init(ngx_conf_t *cf)
 {
-    void                         *m;
+    void                         *m, **module_configs;
     ngx_uint_t                    i, j;
-    ngx_hash_init_t               configs_hash;
     ngx_hash_key_t               *nodes;
-    ngx_themis_config_t          *config;
+    ngx_hash_init_t               configs_hash;
     ngx_http_themis_main_conf_t  *tmcf;
 
     tmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_themis_module);
@@ -126,11 +98,10 @@ ngx_http_themis_init(ngx_conf_t *cf)
     configs_hash.temp_pool = NULL;
 
     nodes = tmcf->configs.elts;
-
     for (i = 0; i < tmcf->configs.nelts; i++) {
-        config = nodes[i].value;
-        config->module_configs =
+        module_configs =
             ngx_pcalloc(cf->pool, sizeof(void *) * ngx_themis_modules_max);
+        nodes[i].value = module_configs;
 
         for (j = 0; ngx_themis_modules[j]; j++) {
             m = ngx_themis_modules[j]->create_config(cf);
@@ -139,7 +110,7 @@ ngx_http_themis_init(ngx_conf_t *cf)
                                &ngx_themis_modules[j]->name);
                 return NGX_ERROR;
             }
-            config->module_configs[j] = m;
+            module_configs[j] = m;
         }
     }
 
@@ -208,7 +179,6 @@ ngx_http_themis_create_loc_conf(ngx_conf_t *cf)
     }
 
     tlcf->enable = NGX_CONF_UNSET;
-    tlcf->config = NGX_CONF_UNSET_PTR;
 
     return tlcf;
 }
@@ -222,7 +192,6 @@ ngx_http_themis_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_value(prev->enable, conf->enable, 0);
     ngx_conf_merge_str_value(prev->name, conf->name, "");
-    ngx_conf_merge_ptr_value(prev->config, conf->config, NULL);
 
     return NGX_CONF_OK;
 }
@@ -250,7 +219,6 @@ ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t                    *value;
     ngx_uint_t                    i;
     ngx_hash_key_t               *node, *nodes;
-    ngx_themis_config_t          *config;
     ngx_http_conf_ctx_t          *http_ctx;
     ngx_http_themis_main_conf_t  *tmcf;
 
@@ -265,7 +233,7 @@ ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (ngx_strncmp(tlcf->name.data, nodes[i].key.data, tlcf->name.len)
             == 0)
         {
-            tlcf->config = nodes[i].value;
+            tlcf->module_configs = (void *) &nodes[i].value;
             goto found;
         }
     }
@@ -275,16 +243,11 @@ ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    config = ngx_pcalloc(cf->pool, sizeof(ngx_themis_config_t));
-    if (config == NULL) {
-        return NGX_CONF_ERROR;
-    }
-
     node->key = tlcf->name;
     node->key_hash = ngx_hash_key_lc(node->key.data, node->key.len);
-    node->value = config;
+    node->value = NULL;
 
-    config->name = tlcf->name;
+    tlcf->module_configs = (void *) &node->value;
 
 found:
 
