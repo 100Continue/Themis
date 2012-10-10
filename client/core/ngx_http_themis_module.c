@@ -253,3 +253,23 @@ found:
 
     return NGX_CONF_OK;
 }
+
+
+void *
+ngx_themis_get_module_conf(ngx_str_t *name, ngx_int_t index)
+{
+    void                        **configs;
+    ngx_int_t                     key;
+    ngx_http_themis_main_conf_t  *tmcf;
+
+    tmcf = ngx_http_cycle_get_module_main_conf(ngx_cycle,
+                                               ngx_http_themis_module);
+
+    key = ngx_hash_key_lc(name->data, name->len);
+    configs = ngx_hash_find(&tmcf->configs_hash, key, name->data, name->len);
+    if (configs == NULL) {
+        return NULL;
+    }
+
+    return configs[index];
+}

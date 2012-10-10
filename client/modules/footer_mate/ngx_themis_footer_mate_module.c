@@ -84,7 +84,10 @@ ngx_themis_module_t ngx_themis_footer_mate = {
 static ngx_int_t
 ngx_themis_footer_mate_init(ngx_conf_t *cf)
 {
-    /* TODO: move this function to thmeis module, this is a demo */
+    /*
+      TODO: move this function to thmeis module, this is a demo,
+      we also need a conf version flag to distinguish pre request or new request
+    */
     ngx_http_handler_pt        *h;
     ngx_http_core_main_conf_t  *cmcf;
 
@@ -138,7 +141,6 @@ ngx_themis_footer_mate_timer_handler(ngx_event_t *ev)
 {
     static u_char                       buf[256];
 
-    void                              **module_configs;
     u_char                             *p;
     ngx_str_t                           content;
     ngx_log_t                          *log;
@@ -189,16 +191,19 @@ ngx_themis_footer_mate_timer_handler(ngx_event_t *ev)
     keys = tmcf->configs.elts;
     for (i = 0; i < tmcf->configs.nelts; i++) {
         key = &keys[i];
-        ngx_log_themis(NGX_LOG_DEBUG, log, 0, "%V create complex value",
-                       &key->key);
 
-        module_configs = ngx_hash_find(&tmcf->configs_hash, key->key_hash,
-                                       key->key.data, key->key.len);
-        if (module_configs == NULL) {
-            continue;
+        /* module_configs = ngx_hash_find(&tmcf->configs_hash, key->key_hash, */
+        /*                                key->key.data, key->key.len); */
+        /* if (module_configs == NULL) { */
+        /*     continue; */
+        /* } */
+
+        /* fcf = module_configs[ngx_themis_footer_mate.index]; */
+        fcf = ngx_themis_get_conf(&key->key, ngx_themis_footer_mate);
+        if (fcf == NULL) {
+            ngx_log_themis(NGX_LOG_ERR, log, 0, "%V not find",
+                           &key->key);
         }
-
-        fcf = module_configs[ngx_themis_footer_mate.index];
 
         cv = ngx_palloc(pool, sizeof(ngx_http_complex_value_t));
         if (cv == NULL) {
@@ -232,8 +237,7 @@ ngx_themis_footer_mate_update_conf_handler(ngx_http_request_t *r)
 
     tlcf = ngx_http_get_module_loc_conf(r, ngx_http_themis_module);
     flcf = ngx_http_get_module_loc_conf(r, ngx_http_footer_filter_module);
-
-    fcf = (*tlcf->module_configs)[ngx_themis_footer_mate.index];
+    fcf = ngx_http_themis_get_conf(tlcf, ngx_themis_footer_mate);
 
     ngx_log_themis(NGX_LOG_ERR, r->connection->log, 0,
                    "update complex value %i", fcf->variable);
