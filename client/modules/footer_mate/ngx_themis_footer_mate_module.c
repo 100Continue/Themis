@@ -192,13 +192,6 @@ ngx_themis_footer_mate_timer_handler(ngx_event_t *ev)
     for (i = 0; i < tmcf->configs.nelts; i++) {
         key = &keys[i];
 
-        /* module_configs = ngx_hash_find(&tmcf->configs_hash, key->key_hash, */
-        /*                                key->key.data, key->key.len); */
-        /* if (module_configs == NULL) { */
-        /*     continue; */
-        /* } */
-
-        /* fcf = module_configs[ngx_themis_footer_mate.index]; */
         fcf = ngx_themis_get_conf(&key->key, ngx_themis_footer_mate);
         if (fcf == NULL) {
             ngx_log_themis(NGX_LOG_ERR, log, 0, "%V not find",

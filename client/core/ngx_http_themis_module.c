@@ -18,7 +18,6 @@ static char *ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 
 
-
 static ngx_command_t ngx_http_themis_commands[] = {
 
     { ngx_string("themis"),

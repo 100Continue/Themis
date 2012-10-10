@@ -5,10 +5,6 @@
 #include <ngx_http.h>
 
 
-extern ngx_uint_t ngx_themis_modules_max;
-extern ngx_module_t ngx_http_themis_module;
-
-
 typedef void *(*ngx_themis_create_config_pt)(ngx_conf_t *cf);
 typedef struct ngx_themis_module_s ngx_themis_module_t;
 typedef struct ngx_http_themis_loc_conf_s ngx_http_themis_loc_conf_t;
@@ -51,6 +47,8 @@ struct ngx_http_themis_loc_conf_s {
     ((*(conf)->module_configs)[(module).index])
 
 
+extern ngx_uint_t ngx_themis_modules_max;
+extern ngx_module_t ngx_http_themis_module;
 extern ngx_themis_module_t *ngx_themis_modules[];
 
 
