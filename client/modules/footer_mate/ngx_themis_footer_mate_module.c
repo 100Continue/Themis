@@ -6,6 +6,7 @@
 
 extern ngx_module_t  ngx_http_footer_filter_module;
 
+
 typedef struct {
     ngx_hash_t                          types;
     ngx_array_t                        *types_keys;
@@ -28,12 +29,11 @@ static ngx_event_t ngx_themis_footer_mate_timer;
 typedef struct ngx_themis_footer_mate_conf_s ngx_themis_footer_mate_conf_t;
 
 
-static ngx_int_t ngx_themis_footer_mate_init(ngx_conf_t *cf);
 static void *ngx_themis_footer_mate_create_config(ngx_conf_t *cf);
 static ngx_int_t ngx_themis_footer_mate_init_process(ngx_cycle_t *cycle);
 static void ngx_themis_footer_mate_timer_handler(ngx_event_t *ev);
-static ngx_int_t ngx_themis_footer_mate_update_conf_handler(
-    ngx_http_request_t *r);
+static ngx_int_t ngx_themis_footer_mate_apply_conf(ngx_http_request_t *r,
+    void *config);
 
 
 struct ngx_themis_footer_mate_conf_s {
@@ -48,7 +48,7 @@ static ngx_command_t ngx_themis_footer_mate_commands[] = {
 
 static ngx_http_module_t  ngx_themis_footer_mate_module_ctx = {
     NULL,
-    ngx_themis_footer_mate_init,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -77,29 +77,9 @@ ngx_module_t  ngx_themis_footer_mate_module = {
 ngx_themis_module_t ngx_themis_footer_mate = {
     0,
     ngx_string("footer_mate"),
-    ngx_themis_footer_mate_create_config
+    ngx_themis_footer_mate_create_config,
+    ngx_themis_footer_mate_apply_conf
 };
-
-
-static ngx_int_t
-ngx_themis_footer_mate_init(ngx_conf_t *cf)
-{
-    /*
-      TODO: move this function to thmeis module, this is a demo,
-      we also need a conf version flag to distinguish pre request or new request
-    */
-    ngx_http_handler_pt        *h;
-    ngx_http_core_main_conf_t  *cmcf;
-
-    cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
-    h = ngx_array_push(&cmcf->phases[NGX_HTTP_PREACCESS_PHASE].handlers);
-    if (h == NULL) {
-        return NGX_ERROR;
-    }
-    *h = ngx_themis_footer_mate_update_conf_handler;
-
-    return NGX_OK;
-}
 
 
 static void *
@@ -222,19 +202,13 @@ ngx_themis_footer_mate_timer_handler(ngx_event_t *ev)
 
 
 static ngx_int_t
-ngx_themis_footer_mate_update_conf_handler(ngx_http_request_t *r)
+ngx_themis_footer_mate_apply_conf(ngx_http_request_t *r, void *config)
 {
-    ngx_http_themis_loc_conf_t         *tlcf;
     ngx_themis_footer_mate_conf_t      *fcf;
     ngx_http_themis_footer_loc_conf_t  *flcf;
 
-    tlcf = ngx_http_get_module_loc_conf(r, ngx_http_themis_module);
+    fcf = config;
     flcf = ngx_http_get_module_loc_conf(r, ngx_http_footer_filter_module);
-    fcf = ngx_http_themis_get_conf(tlcf, ngx_themis_footer_mate);
-
-    ngx_log_themis(NGX_LOG_ERR, r->connection->log, 0,
-                   "update complex value %i", fcf->variable);
-
     flcf->variable = fcf->variable;
 
     return NGX_OK;

@@ -6,6 +6,8 @@
 
 
 typedef void *(*ngx_themis_create_config_pt)(ngx_conf_t *cf);
+typedef ngx_int_t (*ngx_themis_apply_config_pt)(ngx_http_request_t *r,
+    void *config);
 typedef struct ngx_themis_module_s ngx_themis_module_t;
 typedef struct ngx_http_themis_loc_conf_s ngx_http_themis_loc_conf_t;
 typedef struct ngx_http_themis_main_conf_s ngx_http_themis_main_conf_t;
@@ -20,6 +22,7 @@ struct ngx_themis_module_s {
     ngx_str_t                    name;
 
     ngx_themis_create_config_pt  create_config;
+    ngx_themis_apply_config_pt   apply_config;
 };
 
 

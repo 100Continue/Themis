@@ -16,6 +16,7 @@ static ngx_int_t ngx_http_themis_init_process(ngx_cycle_t *cycle);
 static void ngx_http_themis_exit(ngx_cycle_t *cycle);
 static char *ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+static ngx_int_t ngx_http_themis_apply_conf_handler(ngx_http_request_t *r);
 
 
 static ngx_command_t ngx_http_themis_commands[] = {
@@ -84,7 +85,9 @@ ngx_http_themis_init(ngx_conf_t *cf)
     ngx_uint_t                    i, j;
     ngx_hash_key_t               *nodes;
     ngx_hash_init_t               configs_hash;
+    ngx_http_handler_pt          *h;
     ngx_http_themis_main_conf_t  *tmcf;
+    ngx_http_core_main_conf_t    *cmcf;
 
     tmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_themis_module);
 
@@ -119,6 +122,13 @@ ngx_http_themis_init(ngx_conf_t *cf)
         ngx_log_themis(NGX_LOG_ERR, cf->log, 0, "http themis init hash error");
         return NGX_ERROR;
     }
+
+    cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
+    h = ngx_array_push(&cmcf->phases[NGX_HTTP_PREACCESS_PHASE].handlers);
+    if (h == NULL) {
+        return NGX_ERROR;
+    }
+    *h = ngx_http_themis_apply_conf_handler;
 
     return NGX_OK;
 }
@@ -178,6 +188,7 @@ ngx_http_themis_create_loc_conf(ngx_conf_t *cf)
     }
 
     tlcf->enable = NGX_CONF_UNSET;
+    tlcf->module_configs = NGX_CONF_UNSET_PTR;
 
     return tlcf;
 }
@@ -189,8 +200,9 @@ ngx_http_themis_merge_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_themis_loc_conf_t  *prev = parent;
     ngx_http_themis_loc_conf_t  *conf = child;
 
-    ngx_conf_merge_value(prev->enable, conf->enable, 0);
-    ngx_conf_merge_str_value(prev->name, conf->name, "");
+    ngx_conf_merge_value(conf->enable, prev->enable, 0);
+    ngx_conf_merge_str_value(conf->name, prev->name, "");
+    ngx_conf_merge_ptr_value(conf->module_configs, prev->module_configs, NULL);
 
     return NGX_CONF_OK;
 }
@@ -251,6 +263,30 @@ ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 found:
 
     return NGX_CONF_OK;
+}
+
+
+static ngx_int_t
+ngx_http_themis_apply_conf_handler(ngx_http_request_t *r)
+{
+    ngx_uint_t                   i;
+    ngx_themis_module_t         *m;
+    ngx_http_themis_loc_conf_t  *tlcf;
+
+    tlcf = ngx_http_get_module_loc_conf(r, ngx_http_themis_module);
+    if (tlcf->enable) {
+        for (i = 0; ngx_themis_modules[i] ; i++) {
+            m = ngx_themis_modules[i];
+            if (!m->apply_config) {
+                continue;
+            }
+            ngx_log_themis(NGX_LOG_DEBUG, r->connection->log, 0,
+                           "%V %V apply http config", &m->name, &tlcf->name);
+            m->apply_config(r, (*tlcf->module_configs[i]));
+        }
+    }
+
+    return NGX_OK;
 }
 
 
