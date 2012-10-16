@@ -2,8 +2,6 @@ ngx_addon_name=ngx_themis_moduls
 
 THEMIS_CORE_DIR="$ngx_addon_dir/core"
 
-THEMIS_CORE_SRCS="$ngx_addon_dir/ngx_themis_modules.c"
-
 CORE_INCS="$CORE_INCS $ngx_addon_dir $THEMIS_CORE_DIR"
 
 NGX_ADDON_DEPS="$NGX_ADDON_DEPS                     \

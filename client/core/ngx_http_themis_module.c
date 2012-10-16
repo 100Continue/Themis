@@ -19,6 +19,11 @@ static char *ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd,
 static ngx_int_t ngx_http_themis_apply_conf_handler(ngx_http_request_t *r);
 
 
+/* just for test */
+ngx_event_t  themis_timer;
+static void ngx_themis_timer_handler(ngx_event_t *ev);
+
+
 static ngx_command_t ngx_http_themis_commands[] = {
 
     { ngx_string("themis"),
@@ -63,17 +68,6 @@ ngx_module_t  ngx_http_themis_module = {
 static ngx_int_t
 ngx_http_themis_preconfiguration(ngx_conf_t *cf)
 {
-    ngx_uint_t            i;
-    ngx_themis_module_t  *m;
-
-    ngx_themis_modules_max = 0;
-    for (i = 0; ngx_themis_modules[i]; i++) {
-        m = ngx_themis_modules[i];
-        m->index = i;
-    }
-
-    ngx_themis_modules_max = i;
-
     return NGX_OK;
 }
 
@@ -81,13 +75,14 @@ ngx_http_themis_preconfiguration(ngx_conf_t *cf)
 static ngx_int_t
 ngx_http_themis_init(ngx_conf_t *cf)
 {
-    void                         *m, **module_configs;
+    void                         *c, **module_configs;
     ngx_uint_t                    i, j;
     ngx_hash_key_t               *nodes;
     ngx_hash_init_t               configs_hash;
     ngx_http_handler_pt          *h;
-    ngx_http_themis_main_conf_t  *tmcf;
+    ngx_themis_module_t          *m;
     ngx_http_core_main_conf_t    *cmcf;
+    ngx_http_themis_main_conf_t  *tmcf;
 
     tmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_themis_module);
 
@@ -102,17 +97,26 @@ ngx_http_themis_init(ngx_conf_t *cf)
     nodes = tmcf->configs.elts;
     for (i = 0; i < tmcf->configs.nelts; i++) {
         module_configs =
-            ngx_pcalloc(cf->pool, sizeof(void *) * ngx_themis_modules_max);
-        nodes[i].value = module_configs;
+            ngx_pcalloc(cf->pool, sizeof(void *) * ngx_max_module);
 
-        for (j = 0; ngx_themis_modules[j]; j++) {
-            m = ngx_themis_modules[j]->create_config(cf);
-            if (m == NULL) {
+        nodes[i].value = module_configs;
+        for (j = 0; ngx_modules[j]; j++) {
+            if (ngx_modules[j]->type != NGX_THEMIS_MODULE) {
+                continue;
+            }
+
+            m = ngx_modules[j]->ctx;
+            if (!m->create_config) {
+                continue;
+            }
+
+            c = m->create_config(cf);
+            if (c == NULL) {
                 ngx_log_themis(NGX_LOG_ERR, cf->log, 0, "%V create conf error",
-                               &ngx_themis_modules[j]->name);
+                               &m->name);
                 return NGX_ERROR;
             }
-            module_configs[j] = m;
+            module_configs[j] = c;
         }
     }
 
@@ -211,6 +215,19 @@ ngx_http_themis_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 static ngx_int_t
 ngx_http_themis_init_process(ngx_cycle_t *cycle)
 {
+    /*
+      demo of dynamic conf update
+      TODO: use channel event to replace timer
+    */
+
+    ngx_memzero(&themis_timer, sizeof(ngx_event_t));
+
+    themis_timer.handler = ngx_themis_timer_handler;
+    themis_timer.log = cycle->log;
+    themis_timer.data = cycle;
+
+    ngx_add_timer(&themis_timer, 1000);
+
     return NGX_OK;
 }
 
@@ -266,6 +283,55 @@ found:
 }
 
 
+static void
+ngx_themis_timer_handler(ngx_event_t *ev)
+{
+    /* TODO: channel event handler */
+
+    void                        **configs;
+    ngx_int_t                     hash, rc;
+    ngx_uint_t                    i, j;
+    ngx_cycle_t                  *cycle;
+    ngx_hash_key_t               *key, *keys;
+    ngx_themis_module_t          *m;
+    ngx_http_themis_main_conf_t  *tmcf;
+
+    cycle = ev->data;
+    tmcf = ngx_http_cycle_get_module_main_conf(cycle, ngx_http_themis_module);
+
+    keys = tmcf->configs.elts;
+    for (i = 0; i < tmcf->configs.nelts; i++) {
+        key = &keys[i];
+
+        for (j = 0; ngx_modules[j]; j++) {
+            if (ngx_modules[j]->type != NGX_THEMIS_MODULE) {
+                continue;
+            }
+
+            m = ngx_modules[j]->ctx;
+            if (!m->update_config) {
+                continue;
+            }
+
+            hash = ngx_hash_key_lc(key->key.data, key->key.len);
+            configs = ngx_hash_find(&tmcf->configs_hash, hash,
+                                    key->key.data, key->key.len);
+            if (!configs[j]) {
+                continue;
+            }
+
+            rc = m->update_config(cycle, configs[j]);
+            if (rc != NGX_OK) {
+                return;
+            }
+            configs[j] = (void *)((uintptr_t) configs[j] | (uintptr_t) 0x1);
+        }
+    }
+
+    ngx_add_timer(ev, 10000);
+}
+
+
 static ngx_int_t
 ngx_http_themis_apply_conf_handler(ngx_http_request_t *r)
 {
@@ -274,24 +340,38 @@ ngx_http_themis_apply_conf_handler(ngx_http_request_t *r)
     ngx_http_themis_loc_conf_t  *tlcf;
 
     tlcf = ngx_http_get_module_loc_conf(r, ngx_http_themis_module);
-    if (tlcf->enable) {
-        for (i = 0; ngx_themis_modules[i] ; i++) {
-            m = ngx_themis_modules[i];
-            if (!m->apply_config) {
-                continue;
-            }
-            ngx_log_themis(NGX_LOG_DEBUG, r->connection->log, 0,
-                           "%V %V apply http config", &m->name, &tlcf->name);
-            m->apply_config(r, (*tlcf->module_configs[i]));
-        }
+    if (!tlcf->enable) {
+        return NGX_DECLINED;
     }
 
-    return NGX_OK;
+    for (i = 0; ngx_modules[i] ; i++) {
+        if (ngx_modules[i]->type != NGX_THEMIS_MODULE) {
+            continue;
+        }
+
+        m = ngx_modules[i]->ctx;
+        if (!m->apply_config) {
+            continue;
+        }
+
+        if (!((uintptr_t) (*tlcf->module_configs)[i] & (uintptr_t) 0x1)) {
+            continue;
+        }
+
+        (*tlcf->module_configs)[i] =
+            (void *) ((uintptr_t) (*tlcf->module_configs)[i] & (uintptr_t) ~1);
+
+        ngx_log_themis(NGX_LOG_DEBUG, r->connection->log, 0,
+                       "%V %V apply http config", &m->name, &tlcf->name);
+        m->apply_config(r, (*tlcf->module_configs)[i]);
+    }
+
+    return NGX_DECLINED;
 }
 
 
 void *
-ngx_themis_get_module_conf(ngx_str_t *name, ngx_int_t index)
+ngx_themis_get_masked_module_conf(ngx_str_t *name, ngx_int_t index)
 {
     void                        **configs;
     ngx_int_t                     key;
