@@ -9,7 +9,7 @@
 
 
 typedef void *(*ngx_themis_create_config_pt)(ngx_conf_t *cf);
-typedef ngx_int_t (*ngx_themis_update_config)(ngx_cycle_t *cycle, void *conf);
+typedef ngx_int_t (*ngx_themis_update_config)(ngx_cycle_t *cycle, void *config);
 typedef ngx_int_t (*ngx_themis_apply_config_pt)(ngx_http_request_t *r,
     void *config);
 
@@ -49,10 +49,10 @@ struct ngx_http_themis_loc_conf_s {
 
 #define ngx_themis_get_conf(name, module)                               \
     ((void *) ((uintptr_t) (ngx_themis_get_masked_module_conf((name),   \
-          (module).index)) & (uintptr_t) ~1))
+          (module).index)) & (uintptr_t) ~0x1))
 
 #define ngx_http_themis_get_conf(conf, module)                          \
-    (((*(conf)->module_configs)[(module).index]) & (uintptr_t) ~1)
+    (((*(conf)->module_configs)[(module).index]) & (uintptr_t) ~0x1)
 
 
 extern ngx_uint_t ngx_themis_modules_max;

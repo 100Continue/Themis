@@ -320,10 +320,12 @@ ngx_themis_timer_handler(ngx_event_t *ev)
                 continue;
             }
 
-            rc = m->update_config(cycle, configs[j]);
+            rc = m->update_config(cycle, (void *)((uintptr_t) configs[j]
+                                                  & (uintptr_t) ~0x1));
             if (rc != NGX_OK) {
                 return;
             }
+
             configs[j] = (void *)((uintptr_t) configs[j] | (uintptr_t) 0x1);
         }
     }
@@ -359,7 +361,7 @@ ngx_http_themis_apply_conf_handler(ngx_http_request_t *r)
         }
 
         (*tlcf->module_configs)[i] =
-            (void *) ((uintptr_t) (*tlcf->module_configs)[i] & (uintptr_t) ~1);
+            (void *)((uintptr_t) (*tlcf->module_configs)[i] & (uintptr_t) ~0x1);
 
         ngx_log_themis(NGX_LOG_DEBUG, r->connection->log, 0,
                        "%V %V apply http config", &m->name, &tlcf->name);
