@@ -112,7 +112,7 @@ ngx_themis_access_mate_apply_config(ngx_http_request_t *r, void *config)
     ngx_http_access_loc_conf_t  *alcf;
 
     ngx_log_themis(NGX_LOG_DEBUG, r->connection->log, 0,
-                   "apply update config %V %i", &amcf->ip, amcf->deny); 
+                   "apply update config %V %i", &amcf->ip, amcf->deny);
 
     ngx_memzero(&cidr, sizeof(ngx_cidr_t));
     alcf = ngx_http_get_module_loc_conf(r, ngx_http_access_module);
