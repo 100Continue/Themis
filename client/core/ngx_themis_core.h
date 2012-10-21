@@ -1,8 +1,11 @@
-#ifndef _NGX_HTTP_THEMIS_MODULE_H_INCLUDE_
-#define _NGX_HTTP_THEMIS_MODULE_H_INCLUDE_
+#ifndef _NGX_THEMIS_CORE_H_INCLUDE_
+#define _NGX_THEMIS_CORE_H_INCLUDE_
 
+#include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
+#include <ngx_themis_log.h>
+#include <ngx_themis_channel.h>
 
 
 #define NGX_THEMIS_MODULE 0x53494d54  /* TMIS */
@@ -31,6 +34,8 @@ struct ngx_themis_module_s {
 
 
 struct ngx_http_themis_main_conf_s {
+    ngx_flag_t   enable;
+
     ngx_array_t  configs;        /* ngx_hash_key_t: ngx_themis_config_t */
 
     ngx_hash_t   configs_hash;

@@ -1,0 +1,5 @@
+#ifndef _NGX_THEMIS_CHANNEL_H_INCLUDE_
+#define _NGX_THEMIS_CHANNEL_H_INCLUDE_
+
+
+#endif

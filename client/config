@@ -4,9 +4,14 @@ THEMIS_CORE_DIR="$ngx_addon_dir/core"
 
 CORE_INCS="$CORE_INCS $ngx_addon_dir $THEMIS_CORE_DIR"
 
-NGX_ADDON_DEPS="$NGX_ADDON_DEPS                     \
-                $THEMIS_CORE_DIR/ngx_themis_log.h   \
-                $THEMIS_CORE_DIR/ngx_http_themis.h"
+NGX_ADDON_DEPS="$NGX_ADDON_DEPS                        \
+                $THEMIS_CORE_DIR/ngx_themis_log.h      \
+                $THEMIS_CORE_DIR/ngx_themis_channel.h  \
+                $THEMIS_CORE_DIR/ngx_themis_core.h" 
+
+
+THEMIS_CORE_SRCS="$NGX_ADDON_SRCS $THEMIS_CORE_DIR/ngx_themis_channel.c"
+
 
 PROCS_MODULES="$PROCS_MODULES ngx_proc_themis_module"
 NGX_ADDON_SRCS="$NGX_ADDON_SRCS $THEMIS_CORE_DIR/ngx_proc_themis_module.c"

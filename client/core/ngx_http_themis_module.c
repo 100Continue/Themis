@@ -1,8 +1,4 @@
-#include <ngx_core.h>
-#include <ngx_config.h>
-#include <ngx_http.h>
-#include <ngx_themis_log.h>
-#include <ngx_http_themis.h>
+#include <ngx_themis_core.h>
 
 
 static ngx_int_t ngx_http_themis_preconfiguration(ngx_conf_t *cf);
@@ -255,6 +251,7 @@ ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     tlcf->enable = 1;
     http_ctx = cf->ctx;
     tmcf = http_ctx->main_conf[ngx_http_themis_module.ctx_index];
+    tmcf->enable = 1;
 
     nodes = tmcf->configs.elts;
     for (i = 0; i < tmcf->configs.nelts; i++) {

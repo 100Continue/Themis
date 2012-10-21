@@ -1,8 +1,7 @@
 #include <ngx_core.h>
 #include <ngx_config.h>
 #include <ngx_http.h>
-#include <ngx_themis_log.h>
-#include <ngx_http_themis.h>
+#include <ngx_themis_core.h>
 
 
 extern ngx_module_t  ngx_http_access_module;
