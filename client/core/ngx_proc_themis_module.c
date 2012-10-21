@@ -6,6 +6,7 @@
 
 
 typedef struct ngx_proc_themis_conf_s ngx_proc_themis_conf_t;
+typedef struct ngx_proc_themis_context_s ngx_proc_themis_context_t;
 
 
 static void *ngx_proc_themis_create_conf(ngx_conf_t *cf);
@@ -28,6 +29,15 @@ struct ngx_proc_themis_conf_s {
 
     ngx_log_t  log;
 };
+
+
+struct ngx_proc_themis_context_s {
+    ngx_addr_t  server_addr;
+};
+
+
+static ngx_proc_themis_context_t ngx_proc_themis_ctx;
+
 
 
 static ngx_command_t ngx_proc_themis_commands[] = {
@@ -168,7 +178,7 @@ ngx_proc_themis_prev_start(ngx_cycle_t *cycle)
 
     tmcf = ngx_http_cycle_get_module_main_conf(cycle, ngx_http_themis_module);
     if (!tmcf->enable) {
-	return NGX_DECLINED;
+        return NGX_DECLINED;
     }
 
     return NGX_OK;
@@ -192,6 +202,24 @@ ngx_proc_themis_exit(ngx_cycle_t *cycle)
 static ngx_int_t
 ngx_proc_themis_init_process(ngx_cycle_t *cycle)
 {
+    ngx_url_t                u;
+    ngx_proc_themis_conf_t  *ptcf;
+
+    ptcf = ngx_proc_get_conf(cycle->conf_ctx, ngx_proc_themis_module);
+    u.url = ptcf->server;
+    u.no_resolve = 0;
+
+    if (ngx_parse_url(cycle->pool, &u) != NGX_OK) {
+        if (u.err) {
+            ngx_log_themis(NGX_LOG_ERR, &ptcf->log, 0,
+                           "%s in config_server \"%V\"", u.err, &u.url);
+        }
+
+        return NGX_ERROR;
+    }
+
+    ngx_proc_themis_ctx.server_addr = *u.addrs;
+
     return NGX_OK;
 }
 
@@ -200,6 +228,7 @@ static ngx_int_t
 ngx_proc_themis_init_module(ngx_cycle_t *cycle)
 {
     ngx_int_t                     i, s;
+    ngx_log_t                    *log;
     ngx_socket_t                 *socks;
     ngx_core_conf_t              *ccf;
     ngx_proc_themis_conf_t       *ptcf;
@@ -207,7 +236,7 @@ ngx_proc_themis_init_module(ngx_cycle_t *cycle)
 
     tmcf = ngx_http_cycle_get_module_main_conf(cycle, ngx_http_themis_module);
     if (!tmcf->enable) {
-	return NGX_DECLINED;
+        return NGX_DECLINED;
     }
 
     if (ngx_get_conf(cycle->conf_ctx, ngx_procs_module) == NULL) {
@@ -221,8 +250,9 @@ ngx_proc_themis_init_module(ngx_cycle_t *cycle)
         return NGX_OK;
     }
 
-    ngx_log_themis(NGX_LOG_DEBUG, &ptcf->log, 0,
-                  "process init module: %d", ngx_last_process);
+    log = &ptcf->log;
+    ngx_log_themis(NGX_LOG_DEBUG, log, 0, "process init module: %d",
+                   ngx_last_process);
 
     ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
 
@@ -233,7 +263,7 @@ ngx_proc_themis_init_module(ngx_cycle_t *cycle)
         }
 
         if (s == NGX_MAX_PROCESSES) {
-            ngx_log_themis(NGX_LOG_ALERT, &ptcf->log, 0,
+            ngx_log_themis(NGX_LOG_ALERT, log, 0,
                           "themis no more than %d procs can be spawned",
                           NGX_MAX_PROCESSES);
             return NGX_ERROR;
@@ -241,7 +271,7 @@ ngx_proc_themis_init_module(ngx_cycle_t *cycle)
 
         socks = ngx_themis_socketpairs[s];
         if (socks[0] != 0) {
-            ngx_close_channel(socks, &ptcf->log);
+            ngx_close_channel(socks, log);
         }
 
         if (socketpair(AF_UNIX, SOCK_DGRAM, 0, socks) == -1) {
@@ -249,27 +279,27 @@ ngx_proc_themis_init_module(ngx_cycle_t *cycle)
         }
 
         if (ngx_nonblocking(socks[0]) == -1) {
-            ngx_close_channel(socks, &ptcf->log);
+            ngx_close_channel(socks, log);
             return NGX_ERROR;
         }
 
         if (ngx_nonblocking(socks[1]) == -1) {
-            ngx_close_channel(socks, &ptcf->log);
+            ngx_close_channel(socks, log);
             return NGX_ERROR;
         }
 
         if (fcntl(socks[0], F_SETOWN, ngx_pid) == -1) {
-            ngx_close_channel(socks, &ptcf->log);
+            ngx_close_channel(socks, log);
             return NGX_ERROR;
         }
 
         if (fcntl(socks[0], F_SETFD, FD_CLOEXEC) == -1) {
-            ngx_close_channel(socks, &ptcf->log);
+            ngx_close_channel(socks, log);
             return NGX_ERROR;
         }
 
         if (fcntl(socks[1], F_SETFD, FD_CLOEXEC) == -1) {
-            ngx_close_channel(socks, &ptcf->log);
+            ngx_close_channel(socks, log);
             return NGX_ERROR;
         }
     }
