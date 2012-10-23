@@ -1,3 +1,5 @@
+#include <ngx_event.h>
+#include <ngx_channel.h>
 #include <ngx_themis_core.h>
 
 
@@ -13,8 +15,10 @@ static void ngx_http_themis_exit(ngx_cycle_t *cycle);
 static char *ngx_themis_conf_set_config(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 static ngx_int_t ngx_http_themis_apply_conf_handler(ngx_http_request_t *r);
+static void ngx_http_themis_channel_handler(ngx_event_t *ev);
 
 
+extern ngx_socket_t ngx_themis_socketpairs[NGX_MAX_PROCESSES][2];
 /* just for test */
 ngx_event_t  themis_timer;
 static void ngx_themis_timer_handler(ngx_event_t *ev);
@@ -211,6 +215,52 @@ ngx_http_themis_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 static ngx_int_t
 ngx_http_themis_init_process(ngx_cycle_t *cycle)
 {
+    ngx_int_t   i;
+
+    ngx_log_themis_debug0(NGX_LOG_DEBUG_THEMIS, cycle->log, 0, "init process");
+
+    for (i = 0; i < ngx_last_process; i++) {
+        if (ngx_processes[i].pid == -1) {
+            continue;
+        }
+
+        if (i == ngx_process_slot) {
+            continue;
+        }
+
+        if (ngx_themis_socketpairs[i][1] == 0) {
+            continue;
+        }
+
+        ngx_log_themis_debug1(NGX_LOG_DEBUG_THEMIS, cycle->log, 0,
+                              "close useless channel socket %i", i);
+
+        if (close(ngx_themis_socketpairs[i][0]) == -1) {
+            ngx_log_themis(NGX_LOG_ALERT, cycle->log, ngx_errno,
+                           "close() failed");
+        }
+
+        if (close(ngx_themis_socketpairs[i][1]) == -1) {
+            ngx_log_themis(NGX_LOG_ALERT, cycle->log, ngx_errno,
+                           "close() failed");
+        }
+    }
+
+    if (close(ngx_themis_socketpairs[ngx_process_slot][0]) == -1) {
+        ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
+                      "close() socketpair failed");
+    }
+
+    if (ngx_add_channel_event(cycle,
+                              ngx_themis_socketpairs[ngx_process_slot][0],
+                              NGX_READ_EVENT, ngx_http_themis_channel_handler)
+        == NGX_ERROR)
+    {
+        ngx_log_themis(NGX_LOG_ERR, cycle->log, ngx_errno,
+                       "add channel event error");
+        return NGX_ERROR;
+    }
+
     /*
       demo of dynamic conf update
       TODO: use channel event to replace timer
@@ -366,6 +416,13 @@ ngx_http_themis_apply_conf_handler(ngx_http_request_t *r)
     }
 
     return NGX_DECLINED;
+}
+
+
+static void
+ngx_http_themis_channel_handler(ngx_event_t *ev)
+{
+    /* TODO */
 }
 
 

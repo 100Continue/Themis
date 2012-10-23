@@ -1,6 +1,10 @@
 #ifndef _NGX_THEMIS_LOG_H_INCLUDE_
 #define _NGX_THEMIS_LOG_H_INCLUDE_
 
+
+#define NGX_LOG_DEBUG_THEMIS  0x800
+
+
 #if (NGX_HAVE_VARIADIC_MACROS)
 
 #define ngx_log_themis(level, log, err, ...)                     \

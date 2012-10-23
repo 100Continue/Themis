@@ -19,6 +19,7 @@ static ngx_int_t ngx_proc_themis_init_process(ngx_cycle_t *cycle);
 static ngx_int_t ngx_proc_themis_init_module(ngx_cycle_t *cycle);
 static char *ngx_proc_themis_set_log(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+static void ngx_proc_themis_channel_handler(ngx_event_t *ev);
 
 
 extern ngx_socket_t ngx_themis_socketpairs[NGX_MAX_PROCESSES][2];
@@ -37,7 +38,6 @@ struct ngx_proc_themis_context_s {
 
 
 static ngx_proc_themis_context_t ngx_proc_themis_ctx;
-
 
 
 static ngx_command_t ngx_proc_themis_commands[] = {
@@ -195,7 +195,39 @@ ngx_proc_themis_loop_proc(ngx_cycle_t *cycle)
 static void
 ngx_proc_themis_exit(ngx_cycle_t *cycle)
 {
+    ngx_int_t                i;
+    ngx_log_t               *log;
+    ngx_proc_themis_conf_t  *ptcf;
 
+    ptcf = ngx_proc_get_conf(cycle->conf_ctx, ngx_proc_themis_module);
+    log = &ptcf->log;
+
+    for (i = 0; i < ngx_last_process; i++) {
+        if (ngx_processes[i].pid == -1) {
+            continue;
+        }
+
+        if (i == ngx_process_slot) {
+            continue;
+        }
+
+        ngx_log_themis_debug1(NGX_LOG_DEBUG_THEMIS, log, 0,
+                              "close channel socket %i", i);
+
+        if (ngx_themis_socketpairs[i][0] != 0) {
+            if (close(ngx_themis_socketpairs[i][0]) == -1) {
+                ngx_log_themis(NGX_LOG_ALERT, log, ngx_errno,
+                               "close() failed");
+            }
+        }
+
+        if (ngx_themis_socketpairs[i][1] != 0) {
+            if (close(ngx_themis_socketpairs[i][0]) == -1) {
+                ngx_log_themis(NGX_LOG_ALERT, log, ngx_errno,
+                               "close() failed");
+            }
+        }
+    }
 }
 
 
@@ -203,6 +235,7 @@ static ngx_int_t
 ngx_proc_themis_init_process(ngx_cycle_t *cycle)
 {
     ngx_url_t                u;
+    ngx_int_t                i;
     ngx_proc_themis_conf_t  *ptcf;
 
     ptcf = ngx_proc_get_conf(cycle->conf_ctx, ngx_proc_themis_module);
@@ -218,7 +251,41 @@ ngx_proc_themis_init_process(ngx_cycle_t *cycle)
         return NGX_ERROR;
     }
 
+    /* TODO: connect to themis backend-server */
     ngx_proc_themis_ctx.server_addr = *u.addrs;
+
+    for (i = 0; i < ngx_last_process; i++) {
+        if (ngx_processes[i].pid == -1) {
+            continue;
+        }
+
+        if (i == ngx_process_slot) {
+            continue;
+        }
+
+        if (ngx_themis_socketpairs[i][1] == 0) {
+            continue;
+        }
+
+        ngx_log_themis_debug1(NGX_LOG_DEBUG_THEMIS, &ptcf->log, 0,
+                              "close useless channel socket %i", i);
+        if (close(ngx_themis_socketpairs[i][1]) == -1) {
+            ngx_log_themis(NGX_LOG_ALERT, cycle->log, ngx_errno,
+                           "close() channel failed");
+        }
+
+        ngx_themis_socketpairs[i][1] = 0;
+
+        if (ngx_add_channel_event(cycle, ngx_themis_socketpairs[i][0],
+                                  NGX_READ_EVENT,
+                                  ngx_proc_themis_channel_handler)
+            == NGX_ERROR)
+        {
+            ngx_log_themis(NGX_LOG_ERR, cycle->log, ngx_errno,
+                           "add channel event error");
+            return NGX_ERROR;
+        }
+    }
 
     return NGX_OK;
 }
@@ -251,8 +318,8 @@ ngx_proc_themis_init_module(ngx_cycle_t *cycle)
     }
 
     log = &ptcf->log;
-    ngx_log_themis(NGX_LOG_DEBUG, log, 0, "process init module: %d",
-                   ngx_last_process);
+    ngx_log_themis_debug1(NGX_LOG_DEBUG_THEMIS, log, 0,
+                          "process init module: %d", ngx_last_process);
 
     ccf = (ngx_core_conf_t *) ngx_get_conf(cycle->conf_ctx, ngx_core_module);
 
@@ -264,17 +331,20 @@ ngx_proc_themis_init_module(ngx_cycle_t *cycle)
 
         if (s == NGX_MAX_PROCESSES) {
             ngx_log_themis(NGX_LOG_ALERT, log, 0,
-                          "themis no more than %d procs can be spawned",
-                          NGX_MAX_PROCESSES);
+                          "no more than %d procs can be spawned",
+                           NGX_MAX_PROCESSES);
             return NGX_ERROR;
         }
+
+        ngx_log_themis_debug1(NGX_LOG_DEBUG_THEMIS, log, 0,
+                              "init socketpair %i", s);
 
         socks = ngx_themis_socketpairs[s];
         if (socks[0] != 0) {
             ngx_close_channel(socks, log);
         }
 
-        if (socketpair(AF_UNIX, SOCK_DGRAM, 0, socks) == -1) {
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, socks) == -1) {
             return NGX_ERROR;
         }
 
@@ -305,4 +375,12 @@ ngx_proc_themis_init_module(ngx_cycle_t *cycle)
     }
 
     return NGX_OK;
+}
+
+
+static void
+ngx_proc_themis_channel_handler(ngx_event_t *ev)
+{
+    /* TODO */
+
 }
