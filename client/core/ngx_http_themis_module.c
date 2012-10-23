@@ -219,7 +219,7 @@ ngx_http_themis_init_process(ngx_cycle_t *cycle)
 
     ngx_log_themis_debug0(NGX_LOG_DEBUG_THEMIS, cycle->log, 0, "init process");
 
-    for (i = 0; i < ngx_last_process; i++) {
+    for (i = 0; i <= ngx_last_process; i++) {
         if (ngx_processes[i].pid == -1) {
             continue;
         }
@@ -239,20 +239,23 @@ ngx_http_themis_init_process(ngx_cycle_t *cycle)
             ngx_log_themis(NGX_LOG_ALERT, cycle->log, ngx_errno,
                            "close() failed");
         }
+        ngx_themis_socketpairs[i][0] = 0;
 
         if (close(ngx_themis_socketpairs[i][1]) == -1) {
             ngx_log_themis(NGX_LOG_ALERT, cycle->log, ngx_errno,
                            "close() failed");
         }
+        ngx_themis_socketpairs[i][1] = 0;
     }
 
     if (close(ngx_themis_socketpairs[ngx_process_slot][0]) == -1) {
         ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
                       "close() socketpair failed");
     }
+    ngx_themis_socketpairs[ngx_process_slot][0] = 0;
 
     if (ngx_add_channel_event(cycle,
-                              ngx_themis_socketpairs[ngx_process_slot][0],
+                              ngx_themis_socketpairs[ngx_process_slot][1],
                               NGX_READ_EVENT, ngx_http_themis_channel_handler)
         == NGX_ERROR)
     {
@@ -281,7 +284,31 @@ ngx_http_themis_init_process(ngx_cycle_t *cycle)
 static void
 ngx_http_themis_exit(ngx_cycle_t *cycle)
 {
+    ngx_int_t   i;
 
+    ngx_log_themis_debug0(NGX_LOG_DEBUG_THEMIS, cycle->log, 0, "exit process");
+
+    for (i = 0; i <= ngx_last_process; i++) {
+        ngx_log_themis_debug1(NGX_LOG_DEBUG_THEMIS, cycle->log, 0,
+                              "close channel socket %i", i);
+
+        if (ngx_processes[i].pid == -1) {
+            continue;
+        }
+
+        if (ngx_themis_socketpairs[i][0] != 0) {
+            if (close(ngx_themis_socketpairs[i][0]) == -1) {
+                ngx_log_themis(NGX_LOG_ALERT, cycle->log, ngx_errno,
+                               "close() failed");
+            }
+        }
+        if (ngx_themis_socketpairs[i][1] != 0) {
+            if (close(ngx_themis_socketpairs[i][1]) == -1) {
+                ngx_log_themis(NGX_LOG_ALERT, cycle->log, ngx_errno,
+                               "close() failed");
+            }
+        }
+    }
 }
 
 

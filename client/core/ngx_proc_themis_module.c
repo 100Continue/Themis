@@ -202,12 +202,9 @@ ngx_proc_themis_exit(ngx_cycle_t *cycle)
     ptcf = ngx_proc_get_conf(cycle->conf_ctx, ngx_proc_themis_module);
     log = &ptcf->log;
 
-    for (i = 0; i < ngx_last_process; i++) {
-        if (ngx_processes[i].pid == -1) {
-            continue;
-        }
 
-        if (i == ngx_process_slot) {
+    for (i = 0; i <= ngx_last_process; i++) {
+        if (ngx_processes[i].pid == -1) {
             continue;
         }
 
@@ -254,7 +251,7 @@ ngx_proc_themis_init_process(ngx_cycle_t *cycle)
     /* TODO: connect to themis backend-server */
     ngx_proc_themis_ctx.server_addr = *u.addrs;
 
-    for (i = 0; i < ngx_last_process; i++) {
+    for (i = 0; i <= ngx_last_process; i++) {
         if (ngx_processes[i].pid == -1) {
             continue;
         }
@@ -285,6 +282,16 @@ ngx_proc_themis_init_process(ngx_cycle_t *cycle)
                            "add channel event error");
             return NGX_ERROR;
         }
+    }
+
+    if (close(ngx_themis_socketpairs[ngx_process_slot][0]) == -1) {
+        ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
+                      "close() socketpair failed");
+    }
+
+    if (close(ngx_themis_socketpairs[ngx_process_slot][1]) == -1) {
+        ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
+                      "close() socketpair failed");
     }
 
     return NGX_OK;
